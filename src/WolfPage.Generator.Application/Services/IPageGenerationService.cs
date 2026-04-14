@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using WolfPage.Generator.Application.Messages;
 
-namespace WolfPage.Generator.Application.Rendering
+namespace WolfPage.Generator.Application.Services;
+
+public interface IPageGenerationService
 {
-    internal interface IPageGenerationService
-    {
-    }
+    Task ProcessAsync(CreatePageRequestedMessage message, CancellationToken cancellationToken = default);
 }

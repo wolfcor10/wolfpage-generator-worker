@@ -1,3 +1,6 @@
 <Solution>
-  <Project Path="WolfPage.Generator/WolfPage.Generator.csproj" />
+  <Project Path="src/WolfPage.Generator.Application/WolfPage.Generator.Application.csproj" Id="6f4dff6b-5171-4a23-a9c1-2722421267af" />
+  <Project Path="src/WolfPage.Generator.Domain/WolfPage.Generator.Domain.csproj" Id="a836fdaf-7e21-479e-a065-e6035faff869" />
+  <Project Path="src/WolfPage.Generator.Infrastructure/WolfPage.Generator.Infrastructure.csproj" Id="5213e8c8-f71e-47f2-a120-a4a229b20349" />
+  <Project Path="src/WolfPage.Generator.Worker/WolfPage.Generator.Worker.csproj" Id="48701b98-fb75-4d02-9cb2-921d55ac73d7" />
 </Solution>

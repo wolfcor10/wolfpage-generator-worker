@@ -1,10 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace WolfPage.Generator.Domain.Entities;
 
-namespace WolfPage.Generator.Domain.Entities
+public class DomainBinding
 {
-    internal class DomainBinding
-    {
-    }
+    public Guid Id { get; set; }
+    public Guid PageId { get; set; }
+    public string? DomainName { get; set; }
+    public string? Subdomain { get; set; }
+    public bool IsPrimary { get; set; }
+    public string? SslStatus { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    public Page Page { get; set; } = default!;
 }
