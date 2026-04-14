@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace WolfPage.Generator.Application.Rendering;
 
-namespace WolfPage.Generator.Application.Rendering
+public interface ITemplateRenderer
 {
-    internal interface ITemplateRenderer
-    {
-    }
+    string Render(string template, Dictionary<string, object> values);
 }

@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace WolfPage.Generator.Domain.Enums;
 
-namespace WolfPage.Generator.Application.Enums
+public enum RequestStatus
 {
-    internal class RequestStatus
-    {
-    }
+    Pending,
+    Processing,
+    Completed,
+    Failed
 }

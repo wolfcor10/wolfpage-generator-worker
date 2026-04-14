@@ -1,36 +1,36 @@
 # WolfPage Generator Worker
 
-`WolfPage Generator Worker` es un servicio en **.NET** que consume mensajes desde **RabbitMQ** para generar páginas web a partir de **templates almacenados en base de datos**.
+A **.NET Worker Service** that consumes messages from **RabbitMQ** to generate web pages from **database-stored templates**, persisting the final result to **SQL Server** via Entity Framework Core.
 
-El objetivo del proyecto es automatizar la creación de páginas para WolfPage a partir de una solicitud asíncrona, usando un modelo de templates versionados y persistiendo el resultado generado.
+## Overview
 
-## Objetivo del proyecto
+The worker receives a page generation request, fetches the corresponding template version, renders its HTML/CSS/JS content with the data provided in the message, and saves the generated page to the database. Failures are tracked and the request status is updated accordingly.
 
-El worker recibe una solicitud de generación de página, consulta el template correspondiente, renderiza su contenido con los datos enviados en el mensaje y guarda el resultado final en la base de datos.
+## Flow
 
-## Flujo general
+```
+Producer → RabbitMQ (site.generate) → Worker
+                                         │
+                                         ├─ Register PageGenerationRequest (Processing)
+                                         ├─ Fetch TemplateVersion
+                                         ├─ Render HTML / CSS / JS
+                                         ├─ Save Page
+                                         └─ Update request → Completed | Failed
+```
 
-1. Un productor publica un mensaje en RabbitMQ.
-2. El worker consume el mensaje `CreatePageRequested`.
-3. Se registra una `page_generation_request` para trazabilidad.
-4. Se consulta la `template_version` correspondiente.
-5. Se renderiza el HTML/CSS/JS con los datos del mensaje.
-6. Se crea el registro final en `page`.
-7. Se actualiza el estado de la solicitud a `Completed` o `Failed`.
+## Tech Stack
 
-## Tecnologías base
+| Technology | Role |
+|---|---|
+| .NET 10 Worker Service | Host and message consumption |
+| C# | Implementation language |
+| RabbitMQ / RabbitMQ.Client 6.x | Message broker |
+| Entity Framework Core 9 | ORM and migrations |
+| SQL Server | Persistence |
 
-- .NET Worker Service
-- C#
-- RabbitMQ
-- Entity Framework Core
-- SQL Server
-- EF Core Migrations
-
-## Estructura de la solución
+## Solution Structure
 
 ```text
-WolfPage.Generator.sln
 src/
 ├─ WolfPage.Generator.Domain/
 │  ├─ Entities/
@@ -48,6 +48,8 @@ src/
 ├─ WolfPage.Generator.Application/
 │  ├─ Messages/
 │  │  └─ CreatePageRequestedMessage.cs
+│  ├─ Persistence/
+│  │  └─ IPageGenerationRepository.cs
 │  ├─ Services/
 │  │  ├─ IPageGenerationService.cs
 │  │  └─ PageGenerationService.cs
@@ -57,7 +59,8 @@ src/
 │
 ├─ WolfPage.Generator.Infrastructure/
 │  ├─ Persistence/
-│  │  └─ AppDbContext.cs
+│  │  ├─ AppDbContext.cs
+│  │  └─ PageGenerationRepository.cs
 │  └─ Options/
 │     └─ RabbitMqOptions.cs
 │
@@ -68,151 +71,124 @@ src/
    └─ appsettings.json
 ```
 
-## Diagrama UML
+## Architecture
 
-Guarda la imagen en:
+Dependency flow follows clean architecture principles:
 
-```text
-docs/uml/wolfpage_generator_uml.png
+```
+Domain  ←  Application  ←  Infrastructure  ←  Worker
 ```
 
-Y el README la mostrará así:
+- **Domain** — entities and enums, no external dependencies
+- **Application** — use cases, service contracts, repository interface (`IPageGenerationRepository`)
+- **Infrastructure** — EF Core, `AppDbContext`, repository implementation (`PageGenerationRepository`)
+- **Worker** — host, DI wiring, RabbitMQ consumer
 
-![UML del proyecto](docs/uml/wolfpage_generator_uml.png)
+Application depends on Domain only. Infrastructure implements the contracts defined in Application. The Worker composes everything together.
 
-## Modelo principal
+## Database
 
-### Domain
-Contiene las entidades y enums principales del negocio:
-- `Tenant`
-- `Template`
-- `TemplateVersion`
-- `PageGenerationRequest`
-- `Page`
-- `PageAsset`
-- `DomainBinding`
+SQL Server tables (snake_case naming):
 
-### Application
-Contiene los contratos y la lógica de aplicación:
-- mensaje de entrada desde RabbitMQ
-- servicio de generación de páginas
-- renderer de templates
+| Table | Description |
+|---|---|
+| `tenant` | Client or site owner |
+| `template` | Base template definition |
+| `template_version` | Versioned template with HTML, CSS, JS and schema |
+| `page_generation_request` | Audit record of each processing attempt |
+| `page` | Final generated page |
+| `page_asset` | Assets associated to a page |
+| `domain_binding` | Domain or subdomain linked to a page |
 
-### Infrastructure
-Contiene el acceso a datos y configuración técnica:
-- `AppDbContext`
-- opciones de RabbitMQ
-- migrations de EF Core
+**Recommended SQL Server types:** `uniqueidentifier` for IDs · `nvarchar` for text · `bit` for booleans · `datetime2` for dates
 
-### Worker
-Contiene el host ejecutable y el consumer de RabbitMQ.
+## Getting Started
 
-## Entidades principales
+### Prerequisites
 
-### `template`
-Define la plantilla base.
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- SQL Server (local or Docker)
+- RabbitMQ (local or Docker)
 
-### `template_version`
-Guarda la versión concreta del template con HTML, CSS, JS y esquema.
-
-### `tenant`
-Representa el cliente o dueño del sitio.
-
-### `page_generation_request`
-Guarda la solicitud procesada por el worker.
-
-### `page`
-Guarda la página final generada.
-
-### `page_asset`
-Guarda archivos asociados a la página.
-
-### `domain_binding`
-Relaciona la página con un dominio o subdominio.
-
-## Base de datos
-
-Para SQL Server se recomienda usar:
-
-- `uniqueidentifier` para IDs
-- `nvarchar(...)` o `nvarchar(max)` para texto
-- `bit` para booleanos
-- `datetime2` para fechas
-
-## Migrations
-
-Crear migration:
+### Run RabbitMQ with Docker
 
 ```bash
+docker run -d --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  rabbitmq:3-management
+```
+
+Management UI available at `http://localhost:15672` (guest / guest).
+
+### Configuration
+
+Edit `src/WolfPage.Generator.Worker/appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=WolfPageGeneratorDb;Trusted_Connection=True;TrustServerCertificate=True"
+  },
+  "RabbitMq": {
+    "HostName": "localhost",
+    "Port": 5672,
+    "UserName": "guest",
+    "Password": "guest",
+    "VirtualHost": "/",
+    "QueueName": "site.generate"
+  }
+}
+```
+
+### Migrations
+
+```bash
+# Create the initial migration
 dotnet ef migrations add InitialCreate \
   --project src/WolfPage.Generator.Infrastructure \
   --startup-project src/WolfPage.Generator.Worker
-```
 
-Aplicar migration:
-
-```bash
+# Apply to the database
 dotnet ef database update \
   --project src/WolfPage.Generator.Infrastructure \
   --startup-project src/WolfPage.Generator.Worker
 ```
 
-## Ejemplo de mensaje RabbitMQ
+### Run
+
+```bash
+dotnet run --project src/WolfPage.Generator.Worker
+```
+
+## Sample RabbitMQ Message
+
+Publish to the `site.generate` queue with the following payload:
 
 ```json
 {
   "correlationId": "REQ-0001",
   "tenantId": "11111111-1111-1111-1111-111111111111",
   "templateVersionId": "22222222-2222-2222-2222-222222222222",
-  "pageName": "Mi barbería",
-  "slug": "mi-barberia",
+  "pageName": "My Barbershop",
+  "slug": "my-barbershop",
   "content": {
-    "title": "Mi barbería",
-    "heroText": "Cortes modernos y clásicos",
+    "title": "My Barbershop",
+    "heroText": "Modern and classic cuts",
     "phone": "3001234567",
-    "address": "Villavicencio",
+    "address": "123 Main Street",
     "primaryColor": "#111111"
   }
 }
 ```
 
-## Primer alcance sugerido
+Template placeholders use `{{key}}` syntax (e.g. `{{title}}`, `{{heroText}}`).
 
-- Crear estructura base de proyectos.
-- Crear entidades y enums.
-- Crear `AppDbContext`.
-- Crear consumer RabbitMQ.
-- Crear el servicio de generación.
-- Crear la primera migration.
-- Probar el consumo con un mensaje manual.
+## Roadmap
 
-## Siguientes mejoras recomendadas
-
-- Idempotencia por `correlationId`
-- Dead-letter queue
-- Validación de `schema_json`
-- Publicación de la página a storage o filesystem
-- Eventos de éxito y error
-- Tests unitarios e integración
-
-## Primer commit sugerido
-
-Opciones recomendadas:
-
-```text
-chore: create initial solution structure for wolfpage generator worker
-```
-
-```text
-chore: add initial project structure and empty base classes
-```
-
-```text
-feat: bootstrap wolfpage generator worker solution structure
-```
-
-La recomendación principal es esta:
-
-```text
-chore: create initial solution structure for wolfpage generator worker
-```
+- [ ] Idempotency check by `correlationId`
+- [ ] Dead-letter queue for failed messages
+- [ ] `schema_json` validation before rendering
+- [ ] Page publishing to storage or filesystem
+- [ ] Success/failure domain events
+- [ ] Unit and integration tests

@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace WolfPage.Generator.Domain.Enums;
 
-namespace WolfPage.Generator.Application.Enums
+public enum PageStatus
 {
-    internal class PageStatus
-    {
-    }
+    Draft,
+    Generated,
+    Published,
+    Failed
 }
